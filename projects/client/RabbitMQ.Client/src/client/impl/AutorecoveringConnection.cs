@@ -733,6 +733,7 @@ namespace RabbitMQ.Client.Framing.Impl
             {
                 try
                 {
+                    ESLog.Info($"Recovering binding {b.Source} {b.Destination} {b.RoutingKey}");
                     b.Recover();
                 }
                 catch (Exception cause)
@@ -803,6 +804,7 @@ namespace RabbitMQ.Client.Framing.Impl
             {
                 string tag = pair.Key;
                 RecordedConsumer cons = pair.Value;
+                ESLog.Info($"Recovering consumer {cons.ConsumerTag} {cons.Queue}");
 
                 try
                 {
@@ -813,9 +815,11 @@ namespace RabbitMQ.Client.Framing.Impl
                         m_recordedConsumers.Remove(tag);
                         m_recordedConsumers.Add(newTag, cons);
                     }
+                    ESLog.Info($"Recovered consumer {tag} {newTag}");
 
                     if (m_consumerTagChange != null)
                     {
+                        ESLog.Info($"Recovered consumer notify tag change");
                         foreach (EventHandler<ConsumerTagChangedAfterRecoveryEventArgs> h in m_consumerTagChange.GetInvocationList())
                         {
                             try
@@ -860,6 +864,7 @@ namespace RabbitMQ.Client.Framing.Impl
             {
                 try
                 {
+                    ESLog.Info($"Recovering exchange {rx.Name}");
                     rx.Recover();
                 }
                 catch (Exception cause)
@@ -888,6 +893,8 @@ namespace RabbitMQ.Client.Framing.Impl
             {
                 foreach (KeyValuePair<string, RecordedQueue> pair in m_recordedQueues)
                 {
+                    ESLog.Info($"Recovering queue {pair.Key}");
+
                     string oldName = pair.Key;
                     RecordedQueue rq = pair.Value;
 
@@ -895,6 +902,7 @@ namespace RabbitMQ.Client.Framing.Impl
                     {
                         rq.Recover();
                         string newName = rq.Name;
+                        ESLog.Info($"Recovered queue new name {newName}");
 
                         // Make sure server-named queues are re-added with
                         // their new names.
@@ -912,6 +920,7 @@ namespace RabbitMQ.Client.Framing.Impl
 
                         if (m_queueNameChange != null)
                         {
+                            ESLog.Info($"Recovered queue notify queue name change");
                             foreach (EventHandler<QueueNameChangedAfterRecoveryEventArgs> h in m_queueNameChange.GetInvocationList())
                             {
                                 try
@@ -1012,9 +1021,11 @@ namespace RabbitMQ.Client.Framing.Impl
                     switch (m_recoveryLoopState)
                     {
                         case RecoveryConnectionState.Connected:
+                            ESLog.Info($"Recovery state connected");
                             RecoveryLoopConnectedHandler(command);
                             break;
                         case RecoveryConnectionState.Recovering:
+                            ESLog.Info($"Recovery state Recovering");
                             RecoveryLoopRecoveringHandler(command);
                             break;
                         default:
@@ -1040,6 +1051,7 @@ namespace RabbitMQ.Client.Framing.Impl
         /// </summary>
         private void StopRecoveryLoop()
         {
+            ESLog.Info($"Stopping recovery loop");
             m_recoveryCancellationToken.Cancel();
             if (!m_recoveryLoopComplete.Task.Wait(m_factory.RequestedConnectionTimeout))
             {
@@ -1061,10 +1073,12 @@ namespace RabbitMQ.Client.Framing.Impl
                 case RecoveryCommand.PerformAutomaticRecovery:
                     if (TryPerformAutomaticRecovery())
                     {
+                        ESLog.Info($"Recovery state connected");
                         m_recoveryLoopState = RecoveryConnectionState.Connected;
                     }
                     else
                     {
+                        ESLog.Info($"Waiting {m_factory.NetworkRecoveryInterval} before next recovery");
                         Task.Delay(m_factory.NetworkRecoveryInterval).ContinueWith(t => { m_recoveryLoopCommandQueue.TryAdd(RecoveryCommand.PerformAutomaticRecovery); });
                     }
 
@@ -1088,6 +1102,7 @@ namespace RabbitMQ.Client.Framing.Impl
                     break;
                 case RecoveryCommand.BeginAutomaticRecovery:
                     m_recoveryLoopState = RecoveryConnectionState.Recovering;
+                    ESLog.Info($"Waiting {m_factory.NetworkRecoveryInterval} before next recovery");
                     Task.Delay(m_factory.NetworkRecoveryInterval).ContinueWith(t => { m_recoveryLoopCommandQueue.TryAdd(RecoveryCommand.PerformAutomaticRecovery); });
                     break;
                 default:
